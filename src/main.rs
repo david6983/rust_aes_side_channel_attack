@@ -1,7 +1,6 @@
 use matfile;
 use ndarray::{Array2, s, Axis};
 use ndarray_stats::{QuantileExt};
-use std::time::Instant;
 
 const INV_SBOX: [i32; 256] = [
     082,009,106,213,048,054,165,056,191,064,163,158,129,243,215,251,
@@ -142,17 +141,14 @@ fn pearson_correlation(x: &Array2<f64>, y: &Array2<f64>) -> Option<Array2<f64>> 
 fn main() {
     let mut bytes: Vec<usize> = vec![];
     println!("Initialisation...");
-    let initialisation_time = Instant::now();
     if let Some(cto_data) = read_mat_file("res/CTO.mat".to_string(), "CTO") {
         if let Some(traces_data) = read_mat_file("res/Traces.mat".to_string(), "Traces") {
             let cto_inv = build_cto_inv(&cto_data);
             let cto = get_cto(&cto_data);
             let traces = get_traces(&traces_data);
             let sub_traces = traces.slice(s![.., X_MIN..X_MAX]).to_owned();
-            println!("Time of initialisation (in seconds) : {}", initialisation_time.elapsed().as_secs());
             println!("Decrypting the key...");
             for byte_nb in 0..16 {
-                let byte_time = Instant::now();
                 let mut vi: Array2<i32> = Array2::<i32>::zeros((2000, 256));
                 let mut h: Array2<f64> = Array2::<f64>::zeros((2000, 256));
                 for i in 0..NB_TRACES {
@@ -166,7 +162,6 @@ fn main() {
 
                 if let Some(correlation) = pearson_correlation(&h, &sub_traces) {
                     let min_pos = correlation.argmin().unwrap();
-                    println!("found byte {} => {} in {}", byte_nb, min_pos.0,byte_time.elapsed().as_secs());
                     bytes.push(min_pos.0);
                 }
             }

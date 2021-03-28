@@ -38,10 +38,22 @@ or
 ./target/release/aes_side_channel
 ```
 
+## Results
+
+```
+$ time cargo run --release 
+    Finished release [optimized] target(s) in 0.02s
+     Running `target/release/aes_side_channel`
+Initialisation...
+Decrypting the key...
+The decrypted key is [60, 251, 0, 146, 64, 71, 120, 185, 77, 214, 173, 176, 37, 56, 128, 1]
+cargo run --release  2.81s user 0.41s system 99% cpu 3.223 total
+```
+
 ## Benchmark
 
 On a macbook pro Intel core i92,3 GHz 8 cores (Big Sur 11.2.3) - 16 giga of rams, 
-the program found the 16 bytes in almost 5 seconds. In comparison, the same program with GNU octave took more than a hour.
+the program found the 16 bytes in less than 5 seconds. In comparison, the same program with GNU octave took more than a hour.
 
 Note: I am aware of the limitation of the GNU octave software.
 
