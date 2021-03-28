@@ -1,7 +1,7 @@
 use matfile;
-use ndarray::{Array2, s, Axis, arr2};
-use ndarray_stats::{CorrelationExt, QuantileExt};
-//use std::thread;
+use ndarray::{Array2, s, Axis};
+use ndarray_stats::{QuantileExt};
+use std::time::Instant;
 
 const INV_SBOX: [i32; 256] = [
     082,009,106,213,048,054,165,056,191,064,163,158,129,243,215,251,
@@ -82,7 +82,7 @@ fn read_mat_file(path: String, array_name: &str) -> Option<Vec<f64>> {
     return None;
 }
 
-fn pearson_correlation(x: Array2<f64>, y: Array2<f64>) -> Option<Array2<f64>> {
+fn pearson_correlation(x: &Array2<f64>, y: &Array2<f64>) -> Option<Array2<f64>> {
     let y_cols = y.ncols();
     let x_rows = x.nrows();
     let x_cols = x.ncols();
@@ -106,8 +106,8 @@ fn pearson_correlation(x: Array2<f64>, y: Array2<f64>) -> Option<Array2<f64>> {
         }
     }
     // remove mean
-    let x_less_mean = x - repx;
-    let y_less_mean = y - repy;
+    let x_less_mean = x - &repx;
+    let y_less_mean = y - &repy;
     // (n-1)cov(x,y)
     let mut pear_corr = x_less_mean.t().dot(&y_less_mean);
     let x_square = &x_less_mean * &x_less_mean;
@@ -120,12 +120,6 @@ fn pearson_correlation(x: Array2<f64>, y: Array2<f64>) -> Option<Array2<f64>> {
             rep_sxt[[i,j]] = sxt[i];
         }
     }
-    // divide by sqrt((n-1)var(x))
-    for i in 0..pear_corr.nrows() {
-        for j in 0..pear_corr.ncols() {
-            pear_corr[[i,j]] /= rep_sxt[[i,j]];
-        }
-    }
 
     let sy = y_square.sum_axis(Axis(0)).mapv(f64::sqrt);
     let mut rep_sy = Array2::<f64>::zeros((x_cols, sy.len()));
@@ -135,9 +129,9 @@ fn pearson_correlation(x: Array2<f64>, y: Array2<f64>) -> Option<Array2<f64>> {
         }
     }
 
-    // divide by sqrt((n-1)var(y))
     for i in 0..pear_corr.nrows() {
         for j in 0..pear_corr.ncols() {
+            pear_corr[[i,j]] /= rep_sxt[[i,j]];
             pear_corr[[i,j]] /= rep_sy[[i,j]];
         }
     }
@@ -146,43 +140,37 @@ fn pearson_correlation(x: Array2<f64>, y: Array2<f64>) -> Option<Array2<f64>> {
 }
 
 fn main() {
+    let mut bytes: Vec<usize> = vec![];
+    println!("Initialisation...");
+    let initialisation_time = Instant::now();
     if let Some(cto_data) = read_mat_file("res/CTO.mat".to_string(), "CTO") {
         if let Some(traces_data) = read_mat_file("res/Traces.mat".to_string(), "Traces") {
-            //println!("Real part of the data: {:?}", cto_data);
             let cto_inv = build_cto_inv(&cto_data);
             let cto = get_cto(&cto_data);
             let traces = get_traces(&traces_data);
             let sub_traces = traces.slice(s![.., X_MIN..X_MAX]).to_owned();
-            println!("traces: {:?}", sub_traces);
-
-            let mut vi: Array2<i32> = Array2::<i32>::zeros((2000, 256));
-            let mut h: Array2<f64> = Array2::<f64>::zeros((2000, 256));
-            let byte_nb = 0;
-            for i in 0..NB_TRACES {
-                for k in 0..256 {
-                    let xor1 = cto_inv[[i as usize, byte_nb as usize]] ^ k;
-                    vi[[i as usize, k as usize]] = INV_SBOX[xor1 as usize];
-                    let xor2 = vi[[i as usize, k as usize]] ^ cto[[i as usize, byte_nb as usize]];
-                    h[[i as usize, k as usize]] = hamming::weight(&xor2.to_be_bytes()) as f64;
-                }
-            }
-
-            if let Some(correlation) = pearson_correlation(h, sub_traces) {
-                let min = correlation.min().unwrap();
-                let min_pos = correlation.argmin().unwrap();
-                println!("found {} at {}", min, min_pos.0);
-            }
-            /*for b in 1..16 {
-            thread::spawn(|| {
-                let mut vi: Vec<Vec<f64>> = vec![];
+            println!("Time of initialisation (in seconds) : {}", initialisation_time.elapsed().as_secs());
+            println!("Decrypting the key...");
+            for byte_nb in 0..16 {
+                let byte_time = Instant::now();
+                let mut vi: Array2<i32> = Array2::<i32>::zeros((2000, 256));
+                let mut h: Array2<f64> = Array2::<f64>::zeros((2000, 256));
                 for i in 0..NB_TRACES {
                     for k in 0..256 {
-                        println!("{:?}", &cto_inv.len());
-                        //vi[k as usize][i as usize] = INV_SBOX[cto_inv[1 as usize][i as usize] as i32 ^ (k as i32)];
+                        let xor1 = cto_inv[[i as usize, byte_nb as usize]] ^ k;
+                        vi[[i as usize, k as usize]] = INV_SBOX[xor1 as usize];
+                        let xor2 = vi[[i as usize, k as usize]] ^ cto[[i as usize, byte_nb as usize]];
+                        h[[i as usize, k as usize]] = hamming::weight(&xor2.to_be_bytes()) as f64;
                     }
                 }
-            });
-        }*/
+
+                if let Some(correlation) = pearson_correlation(&h, &sub_traces) {
+                    let min_pos = correlation.argmin().unwrap();
+                    println!("found byte {} => {} in {}", byte_nb, min_pos.0,byte_time.elapsed().as_secs());
+                    bytes.push(min_pos.0);
+                }
+            }
+            println!("The decrypted key is {:?}", bytes);
         }
     }
 }
