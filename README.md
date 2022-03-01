@@ -46,7 +46,7 @@ $ time cargo run --release
      Running `target/release/aes_side_channel`
 Initialisation...
 Decrypting the key...
-The decrypted key is [60, 251, 0, 146, 64, 71, 120, 185, 77, 214, 173, 176, 37, 56, 128, 1]
+The decrypted key is [40, 172, 23, 32, 35, 86, 132, 234, 23, 56, 75, 97, 89, 67, 56]
 cargo run --release  2.81s user 0.41s system 99% cpu 3.223 total
 ```
 
